@@ -27,17 +27,10 @@ va.fetchVideos = function() {
         setTimeout(render, 250);
         return;
       }
-      _.each(data.Ids, function(id) {
-        $(".videos").append(va.templates.video({
-          bucket: data.Bucket,
-          id: id
-        }));
 
-        $.get("/video/" + id, function(data) {
-          $("#video_" + id + " .title").html(data.Title);
-          $("#video_" + id + " .duration").html(
-              va.durationToString(data.Duration));
-        });
+      $("#videos").empty();
+      _.each(data.Ids, function(id) {
+        va.renderVideo(data.Bucket, id);
       });
     };
 
@@ -45,8 +38,22 @@ va.fetchVideos = function() {
   });
 };
 
+va.renderVideo = function(bucket, id) {
+  $("#videos").prepend(va.templates.video({
+    bucket: bucket,
+    id: id
+  }));
+
+  $.get("/video/" + id, function(data) {
+    $("#video_" + id + " .title").html(data.Title);
+    $("#video_" + id + " .duration").html(
+        va.durationToString(data.Duration));
+  });
+}
+
 va.prepareTemplates = function() {
   async.each([
+    "uploading_video",
     "video"
   ], function(templateName, callback) {
     $.get("/tmpl/" + templateName + ".html", function(data) {
@@ -69,14 +76,21 @@ $(function() {
   });
   r.assignBrowse(document.getElementById('browseButton'));
   r.on('fileAdded', function(file, event){
-    console.log(file);
+    $("#videos").prepend(va.templates.uploading_video({
+      filename: file.fileName,
+      id: file.uniqueIdentifier
+    }));
     r.upload();
   });
   r.on('fileProgress', function(file) {
+    $("#uploading_" + file.uniqueIdentifier + " .progress").html(
+        Math.round(file.progress() * 100) + "%");
   });
   r.on('fileSuccess', function(file) {
+    va.fetchVideos();
   });
   r.on('fileError', function(file) {
+    $("#uploading_" + file.uniqueIdentifier + " .progress").html("Error");
   });
 });
 va.prepareTemplates();

@@ -1,12 +1,17 @@
 .video {
   display: inline-block;
+  vertical-align: top;
 }
 
-.video img {
+.video img, .video .thumbnail_placeholder {
   height: 180px;
   width: 320px;
 }
 
 .video div {
   text-align: center;
+}
+
+.video .thumbnail_placeholder {
+  background-color: #888888;
 }

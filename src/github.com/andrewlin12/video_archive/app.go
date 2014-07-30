@@ -15,6 +15,7 @@ import (
   "path"
   "strconv"
   "strings"
+  "sync"
   "time"
   "github.com/gorilla/mux"
   "launchpad.net/goamz/aws"
@@ -36,8 +37,11 @@ type VideoMetadata struct {
 
 var config JsonConfig
 var s3Auth aws.Auth
+var uploadMutex *sync.Mutex
 
 func main() {
+  uploadMutex = &sync.Mutex{}
+
   // Read config from disk
   configFile, e := ioutil.ReadFile("./config.json")
   if e != nil {
@@ -146,63 +150,119 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
       http.Error(w, "Could not read file", 500)
       return
     }
-    
-    ioutil.WriteFile(filePath, data, 0744)
+
+    // Check if we are done
+    expectedCount, _ := strconv.ParseInt(
+        r.FormValue("resumableTotalChunks"), 10, 32)
+    filename := r.FormValue("resumableFilename")
+
+    // NOTE: Need to write the file and check if we are done in a mutex
+    uploadMutex.Lock()
+    err = ioutil.WriteFile(filePath, data, 0744)
+    fileInfos, _ := ioutil.ReadDir(folderPath)
+    uploadMutex.Unlock()
+
     if err != nil {
       fmt.Printf("Uh oh: %v", err);
       http.Error(w, "Could not create file", 500)
       return
     }
 
-    fmt.Fprintf(w, "Saved")
 
-    // Check if we are done
-    expectedCount, _ := strconv.ParseInt(
-        r.FormValue("resumableTotalChunks"), 10, 32)
-    filename := r.FormValue("resumableFilename")
-    go checkComplete(folderPath, int(expectedCount), filename)
+    if int(expectedCount) == len(fileInfos) {
+      uploadComplete(w, folderPath, filename, fileInfos)
+    }
+    fmt.Fprintf(w, "Saved")
   } else {
     http.Error(w, "Unsupported", 505)
   }
 }
 
-func checkComplete(folderPath string, expectedCount int, filename string) {
-  fileInfos, _ := ioutil.ReadDir(folderPath)
-  if int(expectedCount) == len(fileInfos) {
-    fmt.Printf("Got them all!\n")
-    outputPath := fmt.Sprintf("/tmp/%s", filename)
-    output, _ := os.Create(outputPath)
-    for _, fileInfo := range fileInfos {
-      chunkData, err := ioutil.ReadFile(
-          fmt.Sprintf("%s/%s", folderPath, fileInfo.Name()))
-      if err != nil {
-        fmt.Printf("Error reading chunk: %v", err)
-      }
-      output.Write(chunkData)
+func uploadComplete(w http.ResponseWriter, folderPath string, 
+    filename string, fileInfos []os.FileInfo) {
+  outputPath := fmt.Sprintf("/tmp/%s", filename)
+  output, _ := os.Create(outputPath)
+  for _, fileInfo := range fileInfos {
+    chunkData, err := ioutil.ReadFile(
+        fmt.Sprintf("%s/%s", folderPath, fileInfo.Name()))
+    if err != nil {
+      fmt.Printf("Error reading chunk: %v", err)
     }
-    fmt.Printf("Complete file: %s\n", outputPath)
-    os.RemoveAll(folderPath)
+    output.Write(chunkData)
+  }
+  fmt.Printf("Complete file: %s\n", outputPath)
+  os.RemoveAll(folderPath)
 
-    originalBaseName := path.Base(outputPath)
-    md5Hash := md5.New()
-    io.WriteString(md5Hash, fmt.Sprintf("%s|%d", originalBaseName, 
-        time.Now().Unix()))
-    basename := fmt.Sprintf("%x", md5Hash.Sum([]byte{}))
+  originalBaseName := path.Base(outputPath)
+  md5Hash := md5.New()
+  io.WriteString(md5Hash, fmt.Sprintf("%s|%d", originalBaseName, 
+      time.Now().Unix()))
+  basename := fmt.Sprintf("%d_%x", time.Now().Unix(), md5Hash.Sum([]byte{}))
+
+  // Create a thumbnail
+  thumbPath := "/tmp/" + basename + "_thumb.jpg"
+  cmd := exec.Command("ffmpeg",
+    "-i", outputPath,
+    "-vframes", "1",
+    thumbPath,
+  )
+  stderr, _ := cmd.StderrPipe()
+  scanner := bufio.NewScanner(stderr)
+  err := cmd.Start()
+  duration := 0.0
+  for scanner.Scan() {
+    scanned := scanner.Text()
+    if strings.Index(scanned, "Duration:") != -1 {
+      parts := strings.Split(scanned, ",")
+      parts = strings.Split(parts[0], "Duration: ")
+      parts = strings.Split(parts[1], ":")
+      hours, _ := strconv.ParseFloat(parts[0], 64)
+      hours = hours * 3600
+      minutes, _ := strconv.ParseFloat(parts[1], 64)
+      minutes = minutes * 60
+      seconds, _ := strconv.ParseFloat(parts[2], 64)
+      duration = hours + minutes + seconds
+    }
+  }
+  cmd.Wait()
+  if err != nil {
+    fmt.Printf("Could not transcode file: %v\n", err)
+    return
+  }
+  fmt.Printf("Thumbnail complete: %s\n", thumbPath)
+  uploadVideoFile(thumbPath, basename)
+
+  jsonMetadata, _ := json.Marshal(VideoMetadata{
+    originalBaseName,
+    originalBaseName,
+    "",
+    duration,
+  })
+
+  _ = getS3Bucket().Put("/" + basename + "/metadata.json", 
+    []byte(jsonMetadata), "text/json", s3.PublicRead)
+  fmt.Printf("Metadata written\n")
+
+  // NOTE: Do video transcodes in a goroutine
+  go func() {
     video1080Path := "/tmp/" + basename + "_1080.mp4"
     video720Path := "/tmp/" + basename + "_720.mp4"
     video360Path := "/tmp/" + basename + "_360.mp4"
     cmd := exec.Command("ffmpeg", 
         "-i", outputPath,
+        "-y",
         "-s", "1920x1080",
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video1080Path,
 
+        "-y",
         "-s", "1280x720",
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video720Path,
-        
+
+        "-y",
         "-s", "640x360",
         "-vcodec", "libx264",
         "-acodec", "libfaac",
@@ -218,68 +278,29 @@ func checkComplete(folderPath string, expectedCount int, filename string) {
     os.RemoveAll(outputPath)
     fmt.Printf("Transcode complete\n")
 
-    // Create a thumbnail
-    thumbPath := "/tmp/" + basename + "_thumb.jpg"
-    cmd = exec.Command("ffmpeg",
-      "-i", video360Path,
-      "-ss", "00:00:01",
-      "-vframes", "1",
-      thumbPath,
-    )
-    stderr, _ := cmd.StderrPipe()
-    scanner := bufio.NewScanner(stderr)
-    err = cmd.Start()
-    duration := 0.0
-    for scanner.Scan() {
-      scanned := scanner.Text()
-      if strings.Index(scanned, "Duration:") != -1 {
-        parts := strings.Split(scanned, ",")
-        parts = strings.Split(parts[0], "Duration: ")
-        parts = strings.Split(parts[1], ":")
-        hours, _ := strconv.ParseFloat(parts[0], 64)
-        hours = hours * 3600
-        minutes, _ := strconv.ParseFloat(parts[1], 64)
-        minutes = minutes * 60
-        seconds, _ := strconv.ParseFloat(parts[2], 64)
-        duration = hours + minutes + seconds
-      }
-    }
-    cmd.Wait()
-    if err != nil {
-      fmt.Printf("Could not transcode file: %v\n", err)
-      return
-    }
-    fmt.Printf("Thumbnail complete: %s\n", thumbPath)
-
-    s3Bucket := getS3Bucket()
-    for _, videoPath := range [...]string{ thumbPath, video360Path,
+    for _, videoPath := range [...]string{ video360Path,
         video720Path, video1080Path } {
-      videoStat, _ := os.Stat(videoPath)
-      uploadFilename := strings.Replace(videoPath, "/tmp", basename, -1)
-      videoReader, _ := os.Open(videoPath)
-      var contentType string
-      if (path.Ext(videoPath) == ".jpg") {
-        contentType = "image/jpg"
-      } else { 
-        contentType = "video/mp4"
-      }
-      err := s3Bucket.PutReader(uploadFilename, videoReader, videoStat.Size(),
-          contentType, s3.PublicRead)
-      if err != nil {
-        fmt.Printf("Failed to upload %s: %v\n", videoPath, err)
-      } else {
-        fmt.Printf("Upload of %s complete\n", uploadFilename)
-        os.RemoveAll(videoPath)
-      }
+      uploadVideoFile(videoPath, basename)
     }
-    jsonMetadata, _ := json.Marshal(VideoMetadata{
-      originalBaseName,
-      "Untitled",
-      "",
-      duration,
-    })
-    _ = s3Bucket.Put("/" + basename + "/metadata.json", 
-      []byte(jsonMetadata), "text/json", s3.PublicRead)
-    fmt.Printf("Metadata written\n")
+  }()
+}
+
+func uploadVideoFile(filePath string, basename string) {
+  stat, _ := os.Stat(filePath)
+  uploadFilename := strings.Replace(filePath, "/tmp", basename, -1)
+  reader, _ := os.Open(filePath)
+  var contentType string
+  if (path.Ext(filePath) == ".jpg") {
+    contentType = "image/jpg"
+  } else { 
+    contentType = "video/mp4"
+  }
+  err := getS3Bucket().PutReader(uploadFilename, reader, stat.Size(),
+      contentType, s3.PublicRead)
+  if err != nil {
+    fmt.Printf("Failed to upload %s: %v\n", filePath, err)
+  } else {
+    fmt.Printf("Upload of %s complete\n", uploadFilename)
+    os.RemoveAll(filePath)
   }
 }
