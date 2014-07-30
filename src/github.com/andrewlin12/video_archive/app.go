@@ -4,11 +4,11 @@ import (
   "bufio"
   "crypto/md5"
   "encoding/json"
+  "flag"
   "fmt"
   "html/template"
   "io"
   "io/ioutil"
-  "log"
   "net/http"
   "os"
   "os/exec"
@@ -75,8 +75,11 @@ func main() {
 
   http.Handle("/", router)
 
-  log.Println("Listening...");
-  http.ListenAndServe(":3000", nil);
+  var port = flag.Int("port", 3000, "Port to listen for requests");
+  flag.Parse()
+
+  fmt.Printf("Listening on %d...\n", *port);
+  http.ListenAndServe(fmt.Sprintf(":%d", *port), nil);
 }
 
 func getS3Bucket() *s3.Bucket {
