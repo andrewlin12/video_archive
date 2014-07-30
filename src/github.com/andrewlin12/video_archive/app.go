@@ -58,10 +58,12 @@ func main() {
   router := mux.NewRouter()
   router.HandleFunc("/", index).Methods("GET")
   router.HandleFunc("/upload", handleUpload)
+  router.HandleFunc("/video/{id}", video)
+  router.HandleFunc("/videos", videos)
 
   // Static routes
   pubFileServer := http.FileServer(http.Dir("./pub/"))
-  for _, path := range [...]string{"js", "css", "img"} {
+  for _, path := range [...]string{"js", "css", "img", "tmpl"} {
     prefix := fmt.Sprintf("/%s/", path)
     router.PathPrefix(prefix).Handler(pubFileServer).Methods("GET")
   }
@@ -80,24 +82,39 @@ func getS3Bucket() *s3.Bucket {
 }
 
 var templates, _ = template.New("index").ParseFiles("./tmpl/index.html")
-type IndexTemplateData struct {
-  Bucket string
-  Thumbs []string
-}
 func index(w http.ResponseWriter, r *http.Request) {
+  templates.ExecuteTemplate(w, "index.html", nil)
+}
+
+type VideosJson struct {
+  Bucket string
+  Ids []string
+}
+func videos(w http.ResponseWriter, r *http.Request) {
   s3Bucket := getS3Bucket()
   res, _ := s3Bucket.List("", "/", "", 1000)
   keys := make([]string, 0)
   for _, v := range res.CommonPrefixes {
     keys = append(keys, strings.Replace(v, "/", "", -1))
   }
-  err := templates.ExecuteTemplate(w, "index.html", IndexTemplateData{
+
+  w.Header().Set("Content-Type", "application/json")
+  json.NewEncoder(w).Encode(VideosJson{
     Bucket: config.BucketName,
-    Thumbs: keys,
+    Ids: keys,
   })
+}
+
+func video(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  s3Bucket := getS3Bucket()
+  data, err := s3Bucket.Get(vars["id"] + "/metadata.json")
   if err != nil {
-    fmt.Printf("Error templating: %v", err)
+    http.Error(w, "Not Found", 404)
+    return
   }
+  w.Header().Set("Content-Type", "application/json")
+  w.Write(data)
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,12 @@
+.video {
+  display: inline-block;
+}
+
+.video img {
+  height: 180px;
+  width: 320px;
+}
+
+.video div {
+  text-align: center;
+}

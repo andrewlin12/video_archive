@@ -1,55 +1,20 @@
 <html>
   <head>
+    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="//code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
     <script src="/js/resumable.js"></script>
+    <script src="/js/async.js"></script>
+    <script src="/js/global.js"></script>
 
-    <style>
-      .video {
-        display: inline-block;
-      }
-
-      .video img {
-        height: 180px;
-        width: 320px;
-      }
-
-      .video div {
-        text-align: center;
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="/css/global.css"></link>
   </head>
   <body>
-    <h1>Testing 1 2 3</h1>
+    <h1>Upload Video</h1>
     <button id="browseButton">Upload</button>
     
     <h1>Videos</h1>
     <div class="videos">
-      {{range .Thumbs}}
-      <div class="video">
-        <a href="http://s3.amazonaws.com/{{$.Bucket}}/{{.}}/{{.}}_720.mp4">
-          <img src="http://s3.amazonaws.com/{{$.Bucket}}/{{.}}/{{.}}_thumb.jpg" />
-        </a><br/>
-        <div class="title">Loading...</div>
-        <div class="duration">--:--</div>
-        <div class="links">
-          <a href="http://s3.amazonaws.com/{{$.Bucket}}/{{.}}/{{.}}_360.mp4">360</a>
-          <a href="http://s3.amazonaws.com/{{$.Bucket}}/{{.}}/{{.}}_720.mp4">720</a>
-          <a href="http://s3.amazonaws.com/{{$.Bucket}}/{{.}}/{{.}}_1080.mp4">1080</a>
-        </div>
-      </div>
-      {{end}}
     </div>
-
-    <script>
-    var r = new Resumable({
-      target:'/upload', 
-      query: {
-        upload_token:'my_token'
-      }
-    });
-    r.assignBrowse(document.getElementById('browseButton'));
-    r.on('fileAdded', function(file, event){
-      r.upload();
-    });
-    </script>
   </body>
 </html>
