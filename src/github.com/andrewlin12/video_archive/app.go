@@ -33,6 +33,7 @@ type VideoMetadata struct {
   Title string
   Description string
   Duration float64
+  Status string
 }
 
 var config JsonConfig
@@ -226,18 +227,21 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   }
   cmd.Wait()
   if err != nil {
-    fmt.Printf("Could not transcode file: %v\n", err)
+    fmt.Printf("Could not generate thumbnail: %v\n", err)
     return
   }
   fmt.Printf("Thumbnail complete: %s\n", thumbPath)
   uploadVideoFile(thumbPath, basename)
 
-  jsonMetadata, _ := json.Marshal(VideoMetadata{
-    originalBaseName,
-    originalBaseName,
-    "",
-    duration,
-  })
+  metadata := VideoMetadata{
+    Title: originalBaseName,
+    OriginalFileName: originalBaseName,
+    Description: fmt.Sprintf("Uploaded on %s", 
+        time.Now().Format("Jan 2, 2006 3:04PM")),
+    Duration: duration,
+    Status: "Processing",
+  }
+  jsonMetadata, _ := json.Marshal(metadata)
 
   _ = getS3Bucket().Put("/" + basename + "/metadata.json", 
     []byte(jsonMetadata), "text/json", s3.PublicRead)
@@ -282,6 +286,12 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
         video720Path, video1080Path } {
       uploadVideoFile(videoPath, basename)
     }
+
+    metadata.Status = "Ready"
+    jsonMetadata, _ := json.Marshal(metadata)
+    _ = getS3Bucket().Put("/" + basename + "/metadata.json", 
+        []byte(jsonMetadata), "text/json", s3.PublicRead)
+    fmt.Printf("Final metadata written\n")
   }()
 }
 

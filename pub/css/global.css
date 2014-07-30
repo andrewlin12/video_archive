@@ -1,6 +1,10 @@
+body {
+  font-family: Helevtica, Arial, sans-serif;
+}
 .video {
   display: inline-block;
   vertical-align: top;
+  padding-bottom: 10px;
 }
 
 .video img, .video .thumbnail_placeholder {
@@ -12,6 +16,20 @@
   text-align: center;
 }
 
+.video .description {
+  color: #666666;
+  font-size: 10pt;
+}
+
 .video .thumbnail_placeholder {
   background-color: #888888;
+}
+
+.video .links {
+  display: none;
+}
+
+.video .status {
+  color: #999999;
+  font-size: 10pt;
 }

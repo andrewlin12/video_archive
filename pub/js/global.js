@@ -1,5 +1,18 @@
 var va = {};
 va.templates = {};
+va.processingVideoIds = {};
+
+va.checkProcessingVideos = function() {
+  _.each(_.keys(va.processingVideoIds), function(id, callback) {
+    $.get("/video/" + id, function(data) {
+      if (data.Status === 'Ready') {
+        va.renderVideo(va.processingVideoIds[id], id);
+        delete va.processingVideoIds[id];
+      }
+    });
+   }, function(err) {
+   });
+};
 
 va.durationToString = function(durationSeconds) {
   var total = parseInt(durationSeconds, 10);
@@ -39,15 +52,32 @@ va.fetchVideos = function() {
 };
 
 va.renderVideo = function(bucket, id) {
-  $("#videos").prepend(va.templates.video({
-    bucket: bucket,
-    id: id
-  }));
+  var existing = $("#video_" + id);
+  var rendered = va.templates.video({
+      bucket: bucket,
+      id: id
+  });
+  if (existing.length > 0) {
+    existing.replaceWith(rendered);
+  } else {
+    $("#videos").prepend(rendered);
+  }
 
+  delete va.processingVideoIds[id];
   $.get("/video/" + id, function(data) {
     $("#video_" + id + " .title").html(data.Title);
+    $("#video_" + id + " .description").html(data.Description);
     $("#video_" + id + " .duration").html(
         va.durationToString(data.Duration));
+    if (data.Status !== 'Ready') {
+      $("#video_" + id + " .links").hide();
+      $("#video_" + id + " .status").html("Videos processing...").show();
+      $("#video_" + id + " a").attr("href", "javascript:alert('Video not ready yet')");
+      va.processingVideoIds[id] = bucket;
+    } else {
+      $("#video_" + id + " .links").show();
+      $("#video_" + id + " .status").hide();
+    }
   });
 }
 
@@ -92,6 +122,8 @@ $(function() {
   r.on('fileError', function(file) {
     $("#uploading_" + file.uniqueIdentifier + " .progress").html("Error");
   });
+
+  setInterval(va.checkProcessingVideos, 15000);
 });
 va.prepareTemplates();
 va.fetchVideos();
