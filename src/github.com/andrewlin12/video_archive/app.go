@@ -8,7 +8,10 @@ import (
   "log"
   "net/http"
   "os"
+  "os/exec"
+  "path"
   "strconv"
+  "strings"
   "time"
   "github.com/gorilla/mux"
   "launchpad.net/goamz/aws"
@@ -136,24 +139,77 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Saved")
 
     // Check if we are done
-    expectedChunkCount, _ := strconv.ParseInt(
+    expectedCount, _ := strconv.ParseInt(
         r.FormValue("resumableTotalChunks"), 10, 32)
-    fileInfos, err := ioutil.ReadDir(folderPath)
-    if int(expectedChunkCount) == len(fileInfos) {
-      fmt.Printf("Got them all!\n")
-      outputPath := fmt.Sprintf("/tmp/%s", r.FormValue("resumableFilename"))
-      output, _ := os.Create(outputPath)
-      for _, fileInfo := range fileInfos {
-        chunkData, err := ioutil.ReadFile(
-            fmt.Sprintf("%s/%s", folderPath, fileInfo.Name()))
-        if err != nil {
-          fmt.Printf("Error reading chunk: %v", err)
-        }
-        output.Write(chunkData)
-      }
-      fmt.Printf("Complete file: %s\n", outputPath)
-    }
+    filename := r.FormValue("resumableFilename")
+    go checkComplete(folderPath, int(expectedCount), filename)
   } else {
     http.Error(w, "Unsupported", 505)
+  }
+}
+
+func checkComplete(folderPath string, expectedCount int, filename string) {
+  fileInfos, _ := ioutil.ReadDir(folderPath)
+  if int(expectedCount) == len(fileInfos) {
+    fmt.Printf("Got them all!\n")
+    outputPath := fmt.Sprintf("/tmp/%s", filename)
+    output, _ := os.Create(outputPath)
+    for _, fileInfo := range fileInfos {
+      chunkData, err := ioutil.ReadFile(
+          fmt.Sprintf("%s/%s", folderPath, fileInfo.Name()))
+      if err != nil {
+        fmt.Printf("Error reading chunk: %v", err)
+      }
+      output.Write(chunkData)
+    }
+    fmt.Printf("Complete file: %s\n", outputPath)
+    os.RemoveAll(folderPath)
+
+    basename := path.Base(outputPath)
+    video1080Path := "/tmp/" + basename + "_1080.mp4"
+    video720Path := "/tmp/" + basename + "_720.mp4"
+    video360Path := "/tmp/" + basename + "_360.mp4"
+    cmd := exec.Command("ffmpeg", 
+        "-i", outputPath,
+        "-s", "1920x1080",
+        "-vcodec", "libx264",
+        "-acodec", "libfaac",
+        video1080Path,
+
+        "-s", "1280x720",
+        "-vcodec", "libx264",
+        "-acodec", "libfaac",
+        video720Path,
+        
+        "-s", "640x360",
+        "-vcodec", "libx264",
+        "-acodec", "libfaac",
+        video360Path,
+    )
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    err := cmd.Run()
+    if err != nil {
+      fmt.Printf("Could not transcode file: %v\n", err)
+      return
+    }
+    os.RemoveAll(outputPath)
+    fmt.Printf("Transcode complete\n")
+
+    s3Bucket := getS3Bucket()
+    for _, videoPath := range [...]string{ video360Path, video720Path,
+        video1080Path } {
+      videoStat, _ := os.Stat(videoPath)
+      uploadFilename := strings.Replace(videoPath, "/tmp", "blarg", -1)
+      videoReader, _ := os.Open(videoPath)
+      err := s3Bucket.PutReader(uploadFilename, videoReader, videoStat.Size(),
+          "video/mp4", s3.PublicRead)
+      if err != nil {
+        fmt.Printf("Failed to upload %s: %v\n", videoPath, err)
+      } else {
+        fmt.Printf("Upload of %s complete\n", uploadFilename)
+        os.RemoveAll(videoPath)
+      }
+    }
   }
 }
