@@ -57,7 +57,6 @@ func main() {
   // Set up web routes
   router := mux.NewRouter()
   router.HandleFunc("/", index).Methods("GET")
-  router.HandleFunc("/test_post", testPost).Methods("POST")
   router.HandleFunc("/upload", handleUpload)
 
   // Static routes
@@ -77,36 +76,28 @@ func getS3Bucket() *s3.Bucket {
   // Connect to S3
   s3Connection := s3.New(s3Auth, aws.USEast)
   s3Bucket := s3Connection.Bucket(config.BucketName)
-  return s3Bucket 
+  return s3Bucket
 }
 
 var templates, _ = template.New("index").ParseFiles("./tmpl/index.html")
-func index(w http.ResponseWriter, r *http.Request) {
-  data := make(map[string]string)
-  templates.ExecuteTemplate(w, "index.html", data)
-  /*
-  s3Bucket := getS3Bucket()
-  res, err := s3Bucket.List("", "", "", 1000)
-  if err != nil {
-      log.Fatal(err)
-  }
-  fmt.Fprint(w, "<pre>")
-  for _, v := range res.Contents {
-      fmt.Fprintf(w, "%s\n", v.Key)
-  }
-  fmt.Fprint(w, "</pre>")
-  */
+type IndexTemplateData struct {
+  Bucket string
+  Thumbs []string
 }
-
-func testPost(w http.ResponseWriter, r *http.Request) {
-  filename := fmt.Sprintf("test_%d.txt", time.Now().Unix())
-  contents := fmt.Sprintf("Posted data: %s", r.FormValue("data"))
+func index(w http.ResponseWriter, r *http.Request) {
   s3Bucket := getS3Bucket()
-  err := s3Bucket.Put(filename, []byte(contents), "text/plain", s3.PublicRead)
-  if err != nil {
-    log.Fatal(err)
+  res, _ := s3Bucket.List("", "/", "", 1000)
+  keys := make([]string, 0)
+  for _, v := range res.CommonPrefixes {
+    keys = append(keys, strings.Replace(v, "/", "", -1))
   }
-  fmt.Fprint(w, "Success!\n");
+  err := templates.ExecuteTemplate(w, "index.html", IndexTemplateData{
+    Bucket: config.BucketName,
+    Thumbs: keys,
+  })
+  if err != nil {
+    fmt.Printf("Error templating: %v", err)
+  }
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
