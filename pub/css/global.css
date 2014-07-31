@@ -1,18 +1,25 @@
 body {
   font-family: Helevtica, Arial, sans-serif;
 }
+
 .video {
   display: inline-block;
   vertical-align: top;
-  padding-bottom: 10px;
+  padding-bottom: 20px;
 }
 
-.video img, .video .thumbnail_placeholder {
+.video .thumbnail_container {
   height: 180px;
-  width: 320px;
+  overflow: hidden;
+  margin-bottom:5px;
 }
 
-.video div {
+.video img, .uploading_video .thumbnail_placeholder {
+  width: 320px;
+  min-height:180px;
+}
+
+.video div, .uploading_video div {
   text-align: center;
 }
 
@@ -27,6 +34,11 @@ body {
 
 .video .links {
   display: none;
+}
+
+.video .tools {
+  display: none;
+  padding-top: 10px;
 }
 
 .video .status {

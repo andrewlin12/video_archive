@@ -65,6 +65,7 @@ func main() {
   router := mux.NewRouter()
   router.HandleFunc("/", index).Methods("GET")
   router.HandleFunc("/upload", handleUpload)
+  router.HandleFunc("/video/{id}/rotate/{degrees}", rotate)
   router.HandleFunc("/video/{id}", video)
   router.HandleFunc("/videos", videos)
 
@@ -209,22 +210,46 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   err := cmd.Start()
   duration := 0.0
   dateTaken := time.Now().Unix() 
+  width := 1920
+  height := 1080
   for scanner.Scan() {
     scanned := scanner.Text()
     if strings.Index(scanned, "duration=") != -1 {
       parts := strings.SplitN(scanned, "=", 2)
       duration, err = strconv.ParseFloat(parts[1], 64)
-    }
-    if (strings.Index(scanned, "TAG:creation_time") != -1) {
+    } else if strings.Index(scanned, "TAG:creation_time") != -1 {
       parts := strings.SplitN(scanned, "creation_time=", 2)
       parsedDate, err := time.Parse("2006-01-02 15:04:05", 
           strings.TrimSpace(parts[1]))
       if err == nil {
         dateTaken = parsedDate.Unix()
       }
+    } else if strings.Index(scanned, "width=") != -1 {
+      parts := strings.SplitN(scanned, "=", 2)
+      newWidth, err := strconv.ParseInt(parts[1], 10, 32)
+      if err == nil {
+        width = int(newWidth)
+      }
+    } else if strings.Index(scanned, "height=") != -1 {
+      parts := strings.SplitN(scanned, "=", 2)
+      newHeight, err := strconv.ParseInt(parts[1], 10, 32)
+      if err == nil {
+        height = int(newHeight)
+      }
     }
   }
   cmd.Wait()
+
+  var dims1920, dims1280, dims640 string
+  if width > height {
+    dims1920 = fmt.Sprintf("1920x%d", 1920 * height / width)
+    dims1280 = fmt.Sprintf("1280x%d", 1280 * height / width)
+    dims640 = fmt.Sprintf("640x%d", 640 * height / width)
+  } else {
+    dims1920 = fmt.Sprintf("%dx1920", 1920 * width / height)
+    dims1280 = fmt.Sprintf("%dx1280", 1280 * width / height)
+    dims640 = fmt.Sprintf("%dx640", 640 * width / height)
+  }
 
   originalBaseName := path.Base(outputPath)
   md5Hash := md5.New()
@@ -237,9 +262,10 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   cmd = exec.Command("ffmpeg",
     "-i", outputPath,
     "-vframes", "1",
+    "-s", dims640,
     thumbPath,
   )
-  cmd.Run();
+  err = cmd.Run();
   if err != nil {
     fmt.Printf("Could not generate thumbnail: %v\n", err)
     return
@@ -271,19 +297,19 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
     cmd := exec.Command("ffmpeg", 
         "-i", outputPath,
         "-y",
-        "-s", "1920x1080",
+        "-s", dims1920,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video1080Path,
 
         "-y",
-        "-s", "1280x720",
+        "-s", dims1280,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video720Path,
 
         "-y",
-        "-s", "640x360",
+        "-s", dims640,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video360Path,
@@ -329,4 +355,91 @@ func uploadVideoFile(filePath string, basename string) {
     fmt.Printf("Upload of %s complete\n", uploadFilename)
     os.RemoveAll(filePath)
   }
+}
+
+func rotate(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  basename := vars["id"]
+  degrees := vars["degrees"]
+  videoFilters := "transpose=4"
+  if degrees == "90" {
+    videoFilters = "transpose=1"
+  } else if degrees == "180" {
+    videoFilters = "transpose=2,transpose=2"
+  } else if degrees == "270" {
+    videoFilters = "transpose=2"
+  }
+
+  fmt.Printf("Rotating %s by %s degrees\n", basename, degrees)
+
+  // Create a thumbnail
+  thumbPath := "/tmp/" + basename + "_thumb.jpg"
+  cmd := exec.Command("ffmpeg",
+    "-i", fmt.Sprintf("http://s3.amazonaws.com/%s/%s/%s_360.mp4",
+        config.BucketName,
+        basename,
+        basename,
+        ),
+    "-vframes", "1",
+    "-vf", videoFilters,
+    thumbPath,
+  )
+  err := cmd.Run();
+  if err != nil {
+    fmt.Printf("Could not generate thumbnail: %v\n", err)
+    return
+  }
+  fmt.Printf("Thumbnail complete: %s\n", thumbPath)
+  uploadVideoFile(thumbPath, basename)  
+  
+  // Get the existing metadata and set the Status to Processing
+  s3Bucket := getS3Bucket()
+  data, _ := s3Bucket.Get(basename + "/metadata.json")
+  var metadata VideoMetadata
+  json.Unmarshal(data, &metadata)
+  metadata.Status = "Processing"
+  jsonMetadata, _ := json.Marshal(metadata)
+  _ = getS3Bucket().Put("/" + basename + "/metadata.json",
+      []byte(jsonMetadata), "text/json", s3.PublicRead)
+  fmt.Printf("Processing metadata written\n")
+
+  fmt.Fprintf(w, "Rotating");
+
+  // NOTE: Do video rotations in a goroutine
+  go func() {
+    for _, size := range [...]string{"1080", "720", "360"} {
+      videoPath := "/tmp/" + basename + "_" + size + ".mp4"
+      cmd := exec.Command("ffmpeg", 
+          "-i", fmt.Sprintf("http://s3.amazonaws.com/%s/%s/%s_%s.mp4",
+              config.BucketName,
+              basename,
+              basename, 
+              size,
+              ),
+          "-y",
+          "-vf", videoFilters,
+          "-vcodec", "libx264",
+          "-acodec", "copy",
+          videoPath,
+      )
+      cmd.Stdout = os.Stdout
+      cmd.Stderr = os.Stderr
+      err := cmd.Run()
+      if err != nil {
+        fmt.Printf("Could not transcode file: %v\n", err)
+        return
+      }
+
+      uploadVideoFile(videoPath, basename)
+      os.RemoveAll(videoPath)
+      fmt.Printf("Rotate %s complete\n", size)
+    }
+
+    metadata.Status = "Ready"
+    jsonMetadata, _ = json.Marshal(metadata)
+    _ = getS3Bucket().Put("/" + basename + "/metadata.json", 
+        []byte(jsonMetadata), "text/json", s3.PublicRead)
+    fmt.Printf("Final metadata written\n")
+  }()
+
 }

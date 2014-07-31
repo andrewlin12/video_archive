@@ -41,6 +41,7 @@ va.fetchVideos = function() {
         return;
       }
 
+      $(".video").remove();
       _.each(data.Ids.reverse(), function(id) {
         va.renderVideo(data.Bucket, id);
       });
@@ -92,6 +93,16 @@ va.prepareTemplates = function() {
   }, function(err) {
     va.templatesLoaded = true;
   });
+};
+
+va.rotateVideo = function(id, degrees) {
+  $.get("/video/" + id + "/rotate/" + degrees, function(data) {
+    va.fetchVideos();
+  });
+};
+
+va.toggleEdit = function(id) {
+  $("#video_" + id + " .tools").toggle();
 };
 
 $(function() {    
