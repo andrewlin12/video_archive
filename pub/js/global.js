@@ -42,7 +42,7 @@ va.fetchVideos = function() {
       }
 
       $("#videos").empty();
-      _.each(data.Ids, function(id) {
+      _.each(data.Ids.reverse(), function(id) {
         va.renderVideo(data.Bucket, id);
       });
     };
@@ -60,7 +60,7 @@ va.renderVideo = function(bucket, id) {
   if (existing.length > 0) {
     existing.replaceWith(rendered);
   } else {
-    $("#videos").prepend(rendered);
+    $("#videos").append(rendered);
   }
 
   delete va.processingVideoIds[id];
@@ -102,7 +102,8 @@ $(function() {
     target:'/upload', 
     query: {
       upload_token:'my_token'
-    }
+    },
+    simultaneousUploads: 1
   });
   r.assignBrowse(document.getElementById('browseButton'));
   r.on('fileAdded', function(file, event){

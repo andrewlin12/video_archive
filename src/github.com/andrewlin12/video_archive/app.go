@@ -34,6 +34,8 @@ type VideoMetadata struct {
   Description string
   Duration float64
   Status string
+  DateTaken int64
+  DateUploaded int64
 }
 
 var config JsonConfig
@@ -197,38 +199,47 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   fmt.Printf("Complete file: %s\n", outputPath)
   os.RemoveAll(folderPath)
 
+  // ffprobe some metadata out
+  cmd := exec.Command("ffprobe",
+    "-show_streams",
+    "-i", outputPath,
+  )
+  stdout, _ := cmd.StdoutPipe()
+  scanner := bufio.NewScanner(stdout)
+  err := cmd.Start()
+  duration := 0.0
+  dateTaken := time.Now().Unix() 
+  for scanner.Scan() {
+    scanned := scanner.Text()
+    if strings.Index(scanned, "duration=") != -1 {
+      parts := strings.SplitN(scanned, "=", 2)
+      duration, err = strconv.ParseFloat(parts[1], 64)
+    }
+    if (strings.Index(scanned, "TAG:creation_time") != -1) {
+      parts := strings.SplitN(scanned, "creation_time=", 2)
+      parsedDate, err := time.Parse("2006-01-02 15:04:05", 
+          strings.TrimSpace(parts[1]))
+      if err == nil {
+        dateTaken = parsedDate.Unix()
+      }
+    }
+  }
+  cmd.Wait()
+
   originalBaseName := path.Base(outputPath)
   md5Hash := md5.New()
   io.WriteString(md5Hash, fmt.Sprintf("%s|%d", originalBaseName, 
       time.Now().Unix()))
-  basename := fmt.Sprintf("%d_%x", time.Now().Unix(), md5Hash.Sum([]byte{}))
+  basename := fmt.Sprintf("%d_%x", dateTaken, md5Hash.Sum([]byte{}))
 
   // Create a thumbnail
   thumbPath := "/tmp/" + basename + "_thumb.jpg"
-  cmd := exec.Command("ffmpeg",
+  cmd = exec.Command("ffmpeg",
     "-i", outputPath,
     "-vframes", "1",
     thumbPath,
   )
-  stderr, _ := cmd.StderrPipe()
-  scanner := bufio.NewScanner(stderr)
-  err := cmd.Start()
-  duration := 0.0
-  for scanner.Scan() {
-    scanned := scanner.Text()
-    if strings.Index(scanned, "Duration:") != -1 {
-      parts := strings.Split(scanned, ",")
-      parts = strings.Split(parts[0], "Duration: ")
-      parts = strings.Split(parts[1], ":")
-      hours, _ := strconv.ParseFloat(parts[0], 64)
-      hours = hours * 3600
-      minutes, _ := strconv.ParseFloat(parts[1], 64)
-      minutes = minutes * 60
-      seconds, _ := strconv.ParseFloat(parts[2], 64)
-      duration = hours + minutes + seconds
-    }
-  }
-  cmd.Wait()
+  cmd.Run();
   if err != nil {
     fmt.Printf("Could not generate thumbnail: %v\n", err)
     return
@@ -239,9 +250,11 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   metadata := VideoMetadata{
     Title: originalBaseName,
     OriginalFileName: originalBaseName,
-    Description: fmt.Sprintf("Uploaded on %s", 
-        time.Now().Format("Jan 2, 2006 3:04PM")),
+    Description: fmt.Sprintf("Recorded %s", 
+        time.Unix(dateTaken, 0).Format("Jan 2, 2006 3:04PM")),
     Duration: duration,
+    DateTaken: dateTaken,
+    DateUploaded: time.Now().Unix(),
     Status: "Processing",
   }
   jsonMetadata, _ := json.Marshal(metadata)
