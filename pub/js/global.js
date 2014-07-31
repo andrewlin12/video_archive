@@ -41,7 +41,6 @@ va.fetchVideos = function() {
         return;
       }
 
-      $("#videos").empty();
       _.each(data.Ids.reverse(), function(id) {
         va.renderVideo(data.Bucket, id);
       });
@@ -118,6 +117,7 @@ $(function() {
         Math.round(file.progress() * 100) + "%");
   });
   r.on('fileSuccess', function(file) {
+    $("#uploading_" + file.uniqueIdentifier).remove();
     va.fetchVideos();
   });
   r.on('fileError', function(file) {
