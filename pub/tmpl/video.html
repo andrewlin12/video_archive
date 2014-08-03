@@ -1,7 +1,7 @@
 <div id="video_<%= id %>" class="video">
-  <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_720.mp4">
+  <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_720.mp4?_=<%= cacheVersion %>">
     <div class="thumbnail_container">
-      <img src="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_thumb.jpg" />
+      <div class="thumbnail" style="background-image:url('http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_thumb.jpg?_=<%= cacheVersion %>')">&nbsp;</div>
     </div>
   </a>
   <div>
@@ -10,9 +10,9 @@
   </div>
   <div class="description"></div>
   <div class="links">
-    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_360.mp4">360</a>
-    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_720.mp4">720</a>
-    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_1080.mp4">1080</a>
+    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_360.mp4?_=<%= cacheVersion %>">360</a>
+    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_720.mp4?_=<%= cacheVersion %>">720</a>
+    <a target="_blank" href="http://s3.amazonaws.com/<%= bucket %>/<%= id %>/<%= id %>_1080.mp4?_=<%= cacheVersion %>">1080</a>
     <a href="javascript:va.toggleEdit('<%= id %>')">edit</a>
   </div>
   <div class="status"></div>

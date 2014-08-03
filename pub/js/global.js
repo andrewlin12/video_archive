@@ -55,7 +55,8 @@ va.renderVideo = function(bucket, id) {
   var existing = $("#video_" + id);
   var rendered = va.templates.video({
       bucket: bucket,
-      id: id
+      id: id,
+      cacheVersion: $.cookie("cacheVersion") || "0"
   });
   if (existing.length > 0) {
     existing.replaceWith(rendered);
@@ -97,6 +98,7 @@ va.prepareTemplates = function() {
 
 va.rotateVideo = function(id, degrees) {
   $.get("/video/" + id + "/rotate/" + degrees, function(data) {
+    $.cookie("cacheVersion", new Date().getTime());
     va.fetchVideos();
   });
 };

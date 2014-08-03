@@ -2,9 +2,9 @@ body {
   font-family: Helevtica, Arial, sans-serif;
 }
 
-.video {
+.video, .uploading_video {
   display: inline-block;
-  vertical-align: top;
+  vertical-align: middle;
   padding-bottom: 20px;
 }
 
@@ -14,9 +14,11 @@ body {
   margin-bottom:5px;
 }
 
-.video img, .uploading_video .thumbnail_placeholder {
+.video .thumbnail, .uploading_video .thumbnail_placeholder {
   width: 320px;
   min-height:180px;
+  background-size:cover;
+  background-position: 50% 50%;
 }
 
 .video div, .uploading_video div {
@@ -28,7 +30,7 @@ body {
   font-size: 10pt;
 }
 
-.video .thumbnail_placeholder {
+.uploading_video .thumbnail_placeholder {
   background-color: #888888;
 }
 
