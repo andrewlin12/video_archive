@@ -246,9 +246,9 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
     dims1280 = fmt.Sprintf("1280x%d", 1280 * height / width)
     dims640 = fmt.Sprintf("640x%d", 640 * height / width)
   } else {
-    dims1920 = fmt.Sprintf("%dx1920", 1920 * width / height)
-    dims1280 = fmt.Sprintf("%dx1280", 1280 * width / height)
-    dims640 = fmt.Sprintf("%dx640", 640 * width / height)
+    dims1920 = fmt.Sprintf("%dx1920", 1920 * width / height / 2 * 2)
+    dims1280 = fmt.Sprintf("%dx1280", 1280 * width / height / 2 * 2)
+    dims640 = fmt.Sprintf("%dx640", 640 * width / height / 2 * 2)
   }
 
   originalBaseName := path.Base(outputPath)
