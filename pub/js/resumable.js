@@ -698,7 +698,9 @@
         }
         var maxFiles = $.getOpt('maxFiles');
         if (typeof(maxFiles)==='undefined'||maxFiles!=1){
-          input.setAttribute('multiple', 'multiple');
+          if (!navigator.userAgent.match(/(iPod|iPhone|iPad)/)) {
+            input.setAttribute('multiple', 'multiple');
+          }
         } else {
           input.removeAttribute('multiple');
         }

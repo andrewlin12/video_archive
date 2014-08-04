@@ -41,9 +41,11 @@ type VideoMetadata struct {
 var config JsonConfig
 var s3Auth aws.Auth
 var uploadMutex *sync.Mutex
+var ffmpegMutex *sync.Mutex
 
 func main() {
   uploadMutex = &sync.Mutex{}
+  ffmpegMutex = &sync.Mutex{}
 
   // Read config from disk
   configFile, e := ioutil.ReadFile("./config.json")
@@ -203,6 +205,7 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   // ffprobe some metadata out
   cmd := exec.Command("ffprobe",
     "-show_streams",
+    "-show_format",
     "-i", outputPath,
   )
   stdout, _ := cmd.StdoutPipe()
@@ -220,6 +223,13 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
     } else if strings.Index(scanned, "TAG:creation_time") != -1 {
       parts := strings.SplitN(scanned, "creation_time=", 2)
       parsedDate, err := time.Parse("2006-01-02 15:04:05", 
+          strings.TrimSpace(parts[1]))
+      if err == nil {
+        dateTaken = parsedDate.Unix()
+      }
+    } else if strings.Index(scanned, "TAG:date=") != -1 {
+      parts := strings.SplitN(scanned, "date=", 2)
+      parsedDate, err := time.Parse("2006-01-02T15:04:05-0700", 
           strings.TrimSpace(parts[1]))
       if err == nil {
         dateTaken = parsedDate.Unix()
@@ -314,9 +324,14 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
         "-acodec", "libfaac",
         video360Path,
     )
+    // HACK: Only allow a single ffmpeg transcode to run at a time.  Should
+    //       really use some kind of queueing system (which would also)
+    //       allow recovery, but this works for now
+    ffmpegMutex.Lock()
     cmd.Stdout = os.Stdout
     cmd.Stderr = os.Stderr
     err := cmd.Run()
+    ffmpegMutex.Unlock()
     if err != nil {
       fmt.Printf("Could not transcode file: %v\n", err)
       return
@@ -422,9 +437,11 @@ func rotate(w http.ResponseWriter, r *http.Request) {
           "-acodec", "copy",
           videoPath,
       )
+      ffmpegMutex.Lock()
       cmd.Stdout = os.Stdout
       cmd.Stderr = os.Stderr
       err := cmd.Run()
+      ffmpegMutex.Unlock()
       if err != nil {
         fmt.Printf("Could not transcode file: %v\n", err)
         return
