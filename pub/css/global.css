@@ -2,6 +2,13 @@ body {
   font-family: Helevtica, Arial, sans-serif;
 }
 
+.videos {
+  min-height: 200px;
+  background-color:#f0f0f0;
+  padding: 5px;
+  padding-top:10px;
+}
+
 .video, .uploading_video {
   display: inline-block;
   vertical-align: middle;

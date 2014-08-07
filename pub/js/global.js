@@ -129,6 +129,7 @@ $(function() {
     simultaneousUploads: 1
   });
   r.assignBrowse(document.getElementById('browseButton'));
+  r.assignDrop(document.getElementById('videos'));
   r.on('fileAdded', function(file, event){
     $("#videos").prepend(va.templates.uploading_video({
       filename: file.fileName,
