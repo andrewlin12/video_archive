@@ -6,6 +6,22 @@ body {
   display: inline-block;
   vertical-align: middle;
   padding-bottom: 20px;
+  vertical-align:top;
+  margin-left: 5px;
+}
+
+.video .title {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  font-weight: bold;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  vertical-align:top;
+}
+
+.video .duration {
+  display: inline-block;
 }
 
 .video .thumbnail_container {
@@ -34,16 +50,24 @@ body {
   background-color: #888888;
 }
 
+.video .links, .video .status, .video .delete {
+  display: inline-block;
+  font-size: 10pt;
+}
+
 .video .links {
   display: none;
 }
 
 .video .tools {
-  display: none;
   padding-top: 10px;
+  display: none;
+}
+
+.video .tools .rotate {
+  display: none;
 }
 
 .video .status {
   color: #999999;
-  font-size: 10pt;
 }

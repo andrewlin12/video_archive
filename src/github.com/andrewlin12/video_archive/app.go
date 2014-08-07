@@ -68,6 +68,7 @@ func main() {
   router.HandleFunc("/", index).Methods("GET")
   router.HandleFunc("/upload", handleUpload)
   router.HandleFunc("/video/{id}/rotate/{degrees}", rotate)
+  router.HandleFunc("/video/{id}/delete", deleteVideo)
   router.HandleFunc("/video/{id}", video)
   router.HandleFunc("/videos", videos)
 
@@ -370,6 +371,19 @@ func uploadVideoFile(filePath string, basename string) {
     fmt.Printf("Upload of %s complete\n", uploadFilename)
     os.RemoveAll(filePath)
   }
+}
+
+func deleteVideo(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  basename := vars["id"]
+  s3Bucket := getS3Bucket()
+
+  s3Bucket.Del(fmt.Sprintf("%s/%s_1080.mp4", basename, basename))
+  s3Bucket.Del(fmt.Sprintf("%s/%s_720.mp4", basename, basename))
+  s3Bucket.Del(fmt.Sprintf("%s/%s_360.mp4", basename, basename))
+  s3Bucket.Del(fmt.Sprintf("%s/%s_thumb.jpg", basename, basename))
+  s3Bucket.Del(fmt.Sprintf("%s/metadata.json", basename))
+  fmt.Fprintf(w, "Deleted")
 }
 
 func rotate(w http.ResponseWriter, r *http.Request) {

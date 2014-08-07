@@ -69,14 +69,17 @@ va.renderVideo = function(bucket, id) {
     $("#video_" + id + " .title").html(data.Title);
     $("#video_" + id + " .description").html(data.Description);
     $("#video_" + id + " .duration").html(
-        va.durationToString(data.Duration));
+        "(" + va.durationToString(data.Duration) + ")");
     if (data.Status !== 'Ready') {
-      $("#video_" + id + " .links").hide();
+      $("#video_" + id + " .links").css('display', 'none');
       $("#video_" + id + " .status").html("Videos processing...").show();
-      $("#video_" + id + " a").attr("href", "javascript:alert('Video not ready yet')");
+      $("#video_" + id + " .links a").attr("href", 
+          "javascript:alert('Video not ready yet')");
       va.processingVideoIds[id] = bucket;
+
+      $("#video_" + id).prependTo("#videos");
     } else {
-      $("#video_" + id + " .links").show();
+      $("#video_" + id + " .links").css('display', 'inline-block');
       $("#video_" + id + " .status").hide();
     }
   });
@@ -101,6 +104,14 @@ va.rotateVideo = function(id, degrees) {
     $.cookie("cacheVersion", new Date().getTime());
     va.fetchVideos();
   });
+};
+
+va.deleteVideo = function(id, degrees) {
+  if (window.confirm("Are you sure you want to delete this video?")) {
+    $.get("/video/" + id + "/delete", function(data) {
+      va.fetchVideos();
+    });
+  }
 };
 
 va.toggleEdit = function(id) {
