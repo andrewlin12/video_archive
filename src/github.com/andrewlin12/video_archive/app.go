@@ -102,14 +102,39 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 type VideosJson struct {
   Bucket string
-  Ids []string
+  Ids map[string]string
 }
 func videos(w http.ResponseWriter, r *http.Request) {
   s3Bucket := getS3Bucket()
   res, _ := s3Bucket.List("", "/", "", 1000)
-  keys := make([]string, 0)
-  for _, v := range res.CommonPrefixes {
-    keys = append(keys, strings.Replace(v, "/", "", -1))
+  keys := make(map[string]string)
+  var wg sync.WaitGroup
+  i := 0
+  for i < len(res.CommonPrefixes) {
+    j := 0
+    for j < 50 {
+      if i + j >= len(res.CommonPrefixes) {
+        break
+      }
+      v := res.CommonPrefixes[i + j]
+      key := strings.Replace(v, "/", "", -1)
+      wg.Add(1)
+      go func(key string) {
+        resp, err := http.Get(fmt.Sprintf("http://s3.amazonaws.com/%s/%s/metadata.json",
+            config.BucketName, key))
+        if err != nil {
+          fmt.Printf("%v\n", err)
+        } else {
+          defer resp.Body.Close()
+          body, _ := ioutil.ReadAll(resp.Body)
+          keys[key] = string(body)
+        }
+        wg.Done()
+      }(key)
+      j++
+    }
+    wg.Wait()
+    i += j 
   }
 
   w.Header().Set("Content-Type", "application/json")
@@ -253,9 +278,9 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
 
   var dims1920, dims1280, dims640 string
   if width > height {
-    dims1920 = fmt.Sprintf("1920x%d", 1920 * height / width)
-    dims1280 = fmt.Sprintf("1280x%d", 1280 * height / width)
-    dims640 = fmt.Sprintf("640x%d", 640 * height / width)
+    dims1920 = fmt.Sprintf("1920x%d", 1920 * height / width / 2 * 2)
+    dims1280 = fmt.Sprintf("1280x%d", 1280 * height / width / 2 * 2)
+    dims640 = fmt.Sprintf("640x%d", 640 * height / width / 2 * 2)
   } else {
     dims1920 = fmt.Sprintf("%dx1920", 1920 * width / height / 2 * 2)
     dims1280 = fmt.Sprintf("%dx1280", 1280 * width / height / 2 * 2)

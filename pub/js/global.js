@@ -42,8 +42,9 @@ va.fetchVideos = function() {
       }
 
       $(".video").remove();
-      _.each(data.Ids.reverse(), function(id) {
-        va.renderVideo(data.Bucket, id);
+      var keys = _.keys(data.Ids).sort().reverse();
+      _.each(keys, function(k) {        
+        va.renderVideo(data.Bucket, k, JSON.parse(data.Ids[k]));
       });
     };
 
@@ -51,7 +52,7 @@ va.fetchVideos = function() {
   });
 };
 
-va.renderVideo = function(bucket, id) {
+va.renderVideo = function(bucket, id, data) {
   var existing = $("#video_" + id);
   var rendered = va.templates.video({
       bucket: bucket,
@@ -65,24 +66,22 @@ va.renderVideo = function(bucket, id) {
   }
 
   delete va.processingVideoIds[id];
-  $.get("/video/" + id, function(data) {
-    $("#video_" + id + " .title").html(data.Title);
-    $("#video_" + id + " .description").html(data.Description);
-    $("#video_" + id + " .duration").html(
-        "(" + va.durationToString(data.Duration) + ")");
-    if (data.Status !== 'Ready') {
-      $("#video_" + id + " .links").css('display', 'none');
-      $("#video_" + id + " .status").html("Videos processing...").show();
-      $("#video_" + id + " .links a").attr("href", 
-          "javascript:alert('Video not ready yet')");
-      va.processingVideoIds[id] = bucket;
+  $("#video_" + id + " .title").html(data.Title);
+  $("#video_" + id + " .description").html(data.Description);
+  $("#video_" + id + " .duration").html(
+      "(" + va.durationToString(data.Duration) + ")");
+  if (data.Status !== 'Ready') {
+    $("#video_" + id + " .links").css('display', 'none');
+    $("#video_" + id + " .status").html("Videos processing...").show();
+    $("#video_" + id + " .links a").attr("href", 
+        "javascript:alert('Video not ready yet')");
+    va.processingVideoIds[id] = bucket;
 
-      $("#video_" + id).prependTo("#videos");
-    } else {
-      $("#video_" + id + " .links").css('display', 'inline-block');
-      $("#video_" + id + " .status").hide();
-    }
-  });
+    $("#video_" + id).prependTo("#videos");
+  } else {
+    $("#video_" + id + " .links").css('display', 'inline-block');
+    $("#video_" + id + " .status").hide();
+  }
 }
 
 va.prepareTemplates = function() {
