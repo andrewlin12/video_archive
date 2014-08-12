@@ -11,12 +11,19 @@
     <link rel="stylesheet" type="text/css" href="/css/global.css"></link>
   </head>
   <body>
-    <h1>Upload Video</h1>
-    <input type="file" accept="video/*" capture="camcorder" id="browseButton" />
-    <div id="uploadingVideos"></div>
-
-    <h1>Videos</h1>
-    <div id="videos" class="videos">
+    <div id="header">
+      Videos
+    </div>
+    <div id="toolbar">
+      <h3>Archive</h3>
+      <div id="time_nav">
+        Loading...
+      </div>
+      <h3>Upload</h3>
+      <input type="file" accept="video/*" capture="camcorder" id="browseButton" />
+    </div>
+    <div id="main">
+      <div id="videos" class="videos"></div>
     </div>
   </body>
 </html>

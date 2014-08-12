@@ -2,11 +2,61 @@ body {
   font-family: Helevtica, Arial, sans-serif;
 }
 
-.videos {
-  min-height: 200px;
+div {
+	-webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: border-box;    /* Firefox, other Gecko */
+	box-sizing: border-box;         /* Opera/IE 8+ */  
+}
+
+#header {
+  background-color: #444;
+  color: #ffffff;
+  font-size: 16pt;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  padding: 4px;
+}
+
+#toolbar {
+  position: fixed;
+  top: 30px;
+  bottom: 0;
+  left: 0;
+  width: 100px;
+  padding: 5px;
+  overflow-y: auto;
+}
+
+#toolbar h3 {
+  margin: 0;
+  padding-bottom: 5px;
+}
+
+#time_nav {
+  padding-bottom: 15px;
+}
+
+#time_nav .nav-year {
+  margin-bottom: 10px;
+}
+
+#time_nav .nav-month {
+  margin-left: 10px;
+}
+
+#main {
+  position: fixed;
+  top: 30px;
+  left: 100px;
+  right: 0;
+  bottom: 0;
   background-color:#f0f0f0;
   padding: 5px;
   padding-top:10px;
+  overflow-y: auto;
 }
 
 .video, .uploading_video {

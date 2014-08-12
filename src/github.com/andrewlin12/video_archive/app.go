@@ -69,6 +69,7 @@ func main() {
   router.HandleFunc("/upload", handleUpload)
   router.HandleFunc("/video/{id}/rotate/{degrees}", rotate)
   router.HandleFunc("/video/{id}/delete", deleteVideo)
+  router.HandleFunc("/video/{id}", video)
   router.HandleFunc("/videos", videos)
 
   // Static routes
@@ -173,6 +174,18 @@ func videos(w http.ResponseWriter, r *http.Request) {
     Ids: keys,
     Remaining: startIndex,
   })
+}
+
+func video(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  s3Bucket := getS3Bucket()
+  data, err := s3Bucket.Get(vars["id"] + "/metadata.json")
+  if err != nil {
+    http.Error(w, "Not Found", 404)
+    return
+  }
+  w.Header().Set("Content-Type", "application/json")
+  w.Write(data)
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
