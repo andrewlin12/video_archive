@@ -34,7 +34,6 @@ va.durationToString = function(durationSeconds) {
 };
 
 va.fetchVideos = function() {
-  $(".video").remove();
   va.fetchVideosInternal(0, true);
 };
 
@@ -168,6 +167,7 @@ va.rotateVideo = function(id, degrees) {
 va.deleteVideo = function(id, degrees) {
   if (window.confirm("Are you sure you want to delete this video?")) {
     $.get("/video/" + id + "/delete", function(data) {
+      $("#video_" + id).remove();
       va.fetchVideos();
     });
   }
