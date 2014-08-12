@@ -34,18 +34,26 @@ va.durationToString = function(durationSeconds) {
 };
 
 va.fetchVideos = function() {
-  $.get("/videos", function(data) {
+  $(".video").remove();
+  va.fetchVideosInternal(0, true);
+};
+
+va.fetchVideosInternal = function(skip, getAll) {
+  $.get("/videos?skip=" + skip + "&limit=50", function(data) {
     var render = function() {
       if (!va.documentReady) {
         setTimeout(render, 250);
         return;
       }
 
-      $(".video").remove();
       var keys = _.keys(data.Ids).sort().reverse();
       _.each(keys, function(k) {        
         va.renderVideo(data.Bucket, k, JSON.parse(data.Ids[k]));
       });
+
+      if (getAll && data.Remaining > 0) {
+        va.fetchVideosInternal(skip + keys.length, true);
+      }
     };
 
     render();

@@ -69,7 +69,6 @@ func main() {
   router.HandleFunc("/upload", handleUpload)
   router.HandleFunc("/video/{id}/rotate/{degrees}", rotate)
   router.HandleFunc("/video/{id}/delete", deleteVideo)
-  router.HandleFunc("/video/{id}", video)
   router.HandleFunc("/videos", videos)
 
   // Static routes
@@ -103,24 +102,55 @@ func index(w http.ResponseWriter, r *http.Request) {
 type VideosJson struct {
   Bucket string
   Ids map[string]string
+  Remaining int
 }
 func videos(w http.ResponseWriter, r *http.Request) {
+  qs := r.URL.Query()
+  skip := 0
+  if qs["skip"] != nil {
+    skip64, err := strconv.ParseInt(qs["skip"][0], 10, 32)
+    if err != nil {
+      http.Error(w, "Invalid 'skip' parameter", 400)
+      return
+    }
+    skip = int(skip64)
+  }
+  limit := 1000
+  if qs["limit"] != nil {
+    limit64, err := strconv.ParseInt(qs["limit"][0], 10, 32)
+    if err != nil {
+      http.Error(w, "Invalid 'limit' parameter", 400)
+      return
+    }
+    limit = int(limit64)
+  }
+
   s3Bucket := getS3Bucket()
   res, _ := s3Bucket.List("", "/", "", 1000)
+  maxLimit := len(res.CommonPrefixes) - skip
+  if limit > maxLimit {
+    limit = maxLimit
+  }
+  startIndex := len(res.CommonPrefixes) - skip - limit
+  if startIndex < 0 {
+    startIndex = 0
+  }
+  prefixes := res.CommonPrefixes[startIndex:startIndex + limit]
   keys := make(map[string]string)
   var wg sync.WaitGroup
-  i := 0
-  for i < len(res.CommonPrefixes) {
+  i := len(prefixes) - 1
+  for i >= 0 {
     j := 0
     for j < 50 {
-      if i + j >= len(res.CommonPrefixes) {
+      if i - j < 0 {
         break
       }
-      v := res.CommonPrefixes[i + j]
+      v := prefixes[i - j]
       key := strings.Replace(v, "/", "", -1)
       wg.Add(1)
       go func(key string) {
-        resp, err := http.Get(fmt.Sprintf("http://s3.amazonaws.com/%s/%s/metadata.json",
+        resp, err := http.Get(
+            fmt.Sprintf("http://s3.amazonaws.com/%s/%s/metadata.json",
             config.BucketName, key))
         if err != nil {
           fmt.Printf("%v\n", err)
@@ -134,26 +164,15 @@ func videos(w http.ResponseWriter, r *http.Request) {
       j++
     }
     wg.Wait()
-    i += j 
+    i -= j 
   }
 
   w.Header().Set("Content-Type", "application/json")
   json.NewEncoder(w).Encode(VideosJson{
     Bucket: config.BucketName,
     Ids: keys,
+    Remaining: startIndex,
   })
-}
-
-func video(w http.ResponseWriter, r *http.Request) {
-  vars := mux.Vars(r)
-  s3Bucket := getS3Bucket()
-  data, err := s3Bucket.Get(vars["id"] + "/metadata.json")
-  if err != nil {
-    http.Error(w, "Not Found", 404)
-    return
-  }
-  w.Header().Set("Content-Type", "application/json")
-  w.Write(data)
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
