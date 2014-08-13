@@ -48,15 +48,12 @@ div {
 }
 
 #main {
-  position: fixed;
-  top: 30px;
-  left: 100px;
-  right: 0;
-  bottom: 0;
+  margin-top: 30px;
+  margin-left: 100px;
+  min-height: 100%;
   background-color:#f0f0f0;
   padding: 5px;
   padding-top:10px;
-  overflow-y: auto;
 }
 
 .video, .uploading_video {
