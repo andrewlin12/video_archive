@@ -125,23 +125,29 @@ va.renderVideo = function(bucket, id, data) {
   } else {
     container.append(rendered);
   }
+  $("#video_" + id).data("bucket", bucket);
 
+  va.updateVideoStatus(id, data);
+}
+
+va.updateVideoStatus = function(id, data) {
   delete va.processingVideoIds[id];
   $("#video_" + id + " .title").html(data.Title);
   $("#video_" + id + " .description").html(data.Description);
   $("#video_" + id + " .duration").html(
       "(" + va.durationToString(data.Duration) + ")");
+  $("#video_" + id + " .tools").hide();
   if (data.Status !== 'Ready') {
     $("#video_" + id + " .links").css('display', 'none');
     $("#video_" + id + " .status").html("Videos processing...").show();
     $("#video_" + id + " .links a").attr("href", 
         "javascript:alert('Video not ready yet')");
-    va.processingVideoIds[id] = bucket;
+    va.processingVideoIds[id] = $("#video_" + id).data("bucket");
   } else {
     $("#video_" + id + " .links").css('display', 'inline-block');
     $("#video_" + id + " .status").hide();
   }
-}
+};
 
 va.prepareTemplates = function() {
   async.each([
@@ -160,7 +166,18 @@ va.prepareTemplates = function() {
 va.rotateVideo = function(id, degrees) {
   $.get("/video/" + id + "/rotate/" + degrees, function(data) {
     $.cookie("cacheVersion", new Date().getTime());
-    va.fetchVideos();
+    $.get("/video/" + id, function(data) {
+      va.updateVideoStatus(id, data);
+    });
+  });
+};
+
+va.stripRotateTag = function(id, degrees) {
+  $.get("/video/" + id + "/stripRotateTag", function(data) {
+    $.cookie("cacheVersion", new Date().getTime());
+    $.get("/video/" + id, function(data) {
+      va.updateVideoStatus(id, data);
+    });
   });
 };
 
@@ -168,7 +185,6 @@ va.deleteVideo = function(id, degrees) {
   if (window.confirm("Are you sure you want to delete this video?")) {
     $.get("/video/" + id + "/delete", function(data) {
       $("#video_" + id).remove();
-      va.fetchVideos();
     });
   }
 };
@@ -183,8 +199,7 @@ va.toggleYear = function(navYearId) {
 
 va.gotoMonth = function(containerId) {
   var targetContainer = $("#" + containerId);
-  console.log(Math.round(targetContainer.position().top), $("#main").scrollTop());
-  $("#main").animate({
+  $("body").animate({
     scrollTop: Math.round(targetContainer.position().top) + $("#main").scrollTop()
   });
 }

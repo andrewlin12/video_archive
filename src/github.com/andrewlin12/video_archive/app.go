@@ -67,6 +67,7 @@ func main() {
   router := mux.NewRouter()
   router.HandleFunc("/", index).Methods("GET")
   router.HandleFunc("/upload", handleUpload)
+  router.HandleFunc("/video/{id}/stripRotateTag", stripRotateTag)
   router.HandleFunc("/video/{id}/rotate/{degrees}", rotate)
   router.HandleFunc("/video/{id}/delete", deleteVideo)
   router.HandleFunc("/video/{id}", video)
@@ -504,6 +505,7 @@ func rotate(w http.ResponseWriter, r *http.Request) {
               ),
           "-y",
           "-vf", videoFilters,
+          "-metadata:s:v:0", "rotate=0",
           "-vcodec", "libx264",
           "-acodec", "copy",
           videoPath,
@@ -529,5 +531,62 @@ func rotate(w http.ResponseWriter, r *http.Request) {
         []byte(jsonMetadata), "text/json", s3.PublicRead)
     fmt.Printf("Final metadata written\n")
   }()
-
 }
+
+func stripRotateTag(w http.ResponseWriter, r *http.Request) {
+  vars := mux.Vars(r)
+  basename := vars["id"]
+
+  // Get the existing metadata and set the Status to Processing
+  s3Bucket := getS3Bucket()
+  data, _ := s3Bucket.Get(basename + "/metadata.json")
+  var metadata VideoMetadata
+  json.Unmarshal(data, &metadata)
+  metadata.Status = "Processing"
+  jsonMetadata, _ := json.Marshal(metadata)
+  _ = getS3Bucket().Put("/" + basename + "/metadata.json",
+      []byte(jsonMetadata), "text/json", s3.PublicRead)
+  fmt.Printf("Processing metadata written\n")
+
+  fmt.Fprintf(w, "Stripping rotate tag");
+
+  go func() {
+    for _, size := range [...]string{"1080", "720", "360"} {
+      videoPath := "/tmp/" + basename + "_" + size + ".mp4"
+      cmd := exec.Command("ffmpeg", 
+          "-i", fmt.Sprintf("http://s3.amazonaws.com/%s/%s/%s_%s.mp4",
+              config.BucketName,
+              basename,
+              basename, 
+              size,
+              ),
+          "-y",
+          "-metadata:s:v:0", "rotate=0",
+          "-vcodec", "copy",
+          "-acodec", "copy",
+          videoPath,
+      )
+      ffmpegMutex.Lock()
+      cmd.Stdout = os.Stdout
+      cmd.Stderr = os.Stderr
+      err := cmd.Run()
+      ffmpegMutex.Unlock()
+      if err != nil {
+        fmt.Printf("Could not transcode file: %v\n", err)
+        return
+      }
+
+      uploadVideoFile(videoPath, basename)
+      os.RemoveAll(videoPath)
+      fmt.Printf("Rotate %s complete\n", size)
+    }
+
+    metadata.Status = "Ready"
+    jsonMetadata, _ = json.Marshal(metadata)
+    _ = getS3Bucket().Put("/" + basename + "/metadata.json", 
+        []byte(jsonMetadata), "text/json", s3.PublicRead)
+    fmt.Printf("Final metadata written\n")
+  }()
+}
+
+
