@@ -274,6 +274,7 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   dateTaken := time.Now().Unix() 
   width := 1920
   height := 1080
+  degrees := "0"
   for scanner.Scan() {
     scanned := scanner.Text()
     if strings.Index(scanned, "duration=") != -1 {
@@ -305,9 +306,18 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
       if err == nil {
         height = int(newHeight)
       }
+    } else if strings.Index(scanned, "TAG:rotate=") != -1 {
+      parts := strings.SplitN(scanned, "=", 2)
+      degrees = parts[1]
     }
   }
   cmd.Wait()
+
+  if degrees == "90" || degrees == "270" {
+    temp := width
+    width = height
+    height = temp
+  }
 
   var dims1920, dims1280, dims640 string
   if width > height {
@@ -331,6 +341,7 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
   cmd = exec.Command("ffmpeg",
     "-i", outputPath,
     "-vframes", "1",
+    "-vf", getRotationVideoFilters(degrees),
     "-s", dims640,
     thumbPath,
   )
@@ -366,18 +377,24 @@ func uploadComplete(w http.ResponseWriter, folderPath string,
     cmd := exec.Command("ffmpeg", 
         "-i", outputPath,
         "-y",
+        "-vf", getRotationVideoFilters(degrees),
+        "-metadata:s:v:0", "rotate=0",
         "-s", dims1920,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video1080Path,
 
         "-y",
+        "-vf", getRotationVideoFilters(degrees),
+        "-metadata:s:v:0", "rotate=0",
         "-s", dims1280,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
         video720Path,
 
         "-y",
+        "-vf", getRotationVideoFilters(degrees),
+        "-metadata:s:v:0", "rotate=0",
         "-s", dims640,
         "-vcodec", "libx264",
         "-acodec", "libfaac",
@@ -444,6 +461,19 @@ func deleteVideo(w http.ResponseWriter, r *http.Request) {
   fmt.Fprintf(w, "Deleted")
 }
 
+func getRotationVideoFilters(degrees string) string {
+  videoFilters := "transpose=4"
+  if degrees == "90" {
+    videoFilters = "transpose=1"
+  } else if degrees == "180" {
+    videoFilters = "transpose=2,transpose=2"
+  } else if degrees == "270" {
+    videoFilters = "transpose=2"
+  }
+
+  return videoFilters
+}
+
 func rotate(w http.ResponseWriter, r *http.Request) {
   vars := mux.Vars(r)
   basename := vars["id"]
@@ -468,7 +498,7 @@ func rotate(w http.ResponseWriter, r *http.Request) {
         basename,
         ),
     "-vframes", "1",
-    "-vf", videoFilters,
+    "-vf", getRotationVideoFilters(degrees),
     thumbPath,
   )
   err := cmd.Run();
