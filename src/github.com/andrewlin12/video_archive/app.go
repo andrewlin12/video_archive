@@ -75,8 +75,8 @@ func main() {
 
   // Static routes
   pubFileServer := http.FileServer(http.Dir("./pub/"))
-  for _, path := range [...]string{"js", "css", "img", "tmpl"} {
-    prefix := fmt.Sprintf("/%s/", path)
+  for _, path := range [...]string{"js/", "css/", "img/", "tmpl/", "robots.txt"} {
+    prefix := fmt.Sprintf("/%s", path)
     router.PathPrefix(prefix).Handler(pubFileServer).Methods("GET")
   }
 
