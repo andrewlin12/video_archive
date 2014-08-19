@@ -164,6 +164,19 @@ div {
   padding: 5px;
 }
 
+#player_metadata {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  text-align: right;
+  padding: 5px;
+  color: white;
+}
+
+#player_title {
+  font-weight: bold;
+}
+
 #next_video a, #close_player a {
   color: white;
 }

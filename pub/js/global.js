@@ -44,11 +44,15 @@ va.playRandom = function() {
 };
 
 va.playVideo = function(id) {
+  var videoElem = $("#video_" + id);
   $("#player").attr(
-    "src", $("#video_" + id).find("a").attr("href")).attr(
+    "src", videoElem.find("a").attr("href")).attr(
     "controls", "controls");
   $("#player")[0].load();
   $("#player")[0].play();
+  var metadata = videoElem.data("metadata");
+  $("#player_title").html(metadata.Title);
+  $("#player_description").html(metadata.Description);
   $("#player_container").show();
 };
 
@@ -158,6 +162,7 @@ va.renderVideo = function(bucket, id, data) {
     container.append(rendered);
   }
   $("#video_" + id).data("bucket", bucket);
+  $("#video_" + id).data("metadata", data);
 
   va.updateVideoStatus(id, data);
 }
