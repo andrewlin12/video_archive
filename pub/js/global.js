@@ -2,6 +2,9 @@ var va = {};
 va.templates = {};
 va.processingVideoIds = {};
 
+va.randomPlaylistIndex = 0;
+va.randomPlaylist = [];
+
 va.checkProcessingVideos = function() {
   _.each(_.keys(va.processingVideoIds), function(id, callback) {
     $.get("/video/" + id, function(data) {
@@ -33,7 +36,31 @@ va.durationToString = function(durationSeconds) {
   return result;
 };
 
+va.playRandom = function() {
+  var id = va.randomPlaylist[va.randomPlaylistIndex % 
+      va.randomPlaylist.length];
+  va.randomPlaylistIndex++;
+  va.playVideo(id);
+};
+
+va.playVideo = function(id) {
+  $("#player").attr(
+    "src", $("#video_" + id).find("a").attr("href")).attr(
+    "controls", "controls");
+  $("#player")[0].load();
+  $("#player")[0].play();
+  $("#player_container").show();
+};
+
+va.closePlayer = function() {
+  $("#player")[0].pause();
+  $("#player").attr("src", "");
+  $("#player_container").hide();
+}
+
 va.fetchVideos = function() {
+  va.randomPlaylist = [];
+  va.randomPlaylistIndex = 0;
   va.fetchVideosInternal(0, true);
 };
 
@@ -47,8 +74,13 @@ va.fetchVideosInternal = function(skip, getAll) {
 
       var keys = _.keys(data.Ids).sort().reverse();
       _.each(keys, function(k) {        
-        va.renderVideo(data.Bucket, k, JSON.parse(data.Ids[k]));
+        var videoData = JSON.parse(data.Ids[k]);
+        if (videoData.Status === "Ready") {
+          va.randomPlaylist.push(k);
+        }
+        va.renderVideo(data.Bucket, k, videoData);
       });
+      va.randomPlaylist = _.shuffle(va.randomPlaylist);
 
       if (getAll && data.Remaining > 0) {
         va.fetchVideosInternal(skip + keys.length, true);
@@ -233,6 +265,10 @@ $(function() {
   });
   r.on('fileError', function(file) {
     $("#uploading_" + file.uniqueIdentifier + " .progress").html("Error");
+  });
+
+  $("#player")[0].addEventListener("ended", function() {
+    va.playRandom();
   });
 
   setInterval(va.checkProcessingVideos, 15000);

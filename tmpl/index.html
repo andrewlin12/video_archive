@@ -16,6 +16,9 @@
       Videos
     </div>
     <div id="toolbar">
+      <div>
+        <button onclick="va.playRandom()">Random</button>
+      </div>
       <h3>Archive</h3>
       <div id="time_nav">
         Loading...
@@ -25,6 +28,15 @@
     </div>
     <div id="main">
       <div id="videos" class="videos"></div>
+    </div>
+    <div id="player_container">
+      <video id="player"></video>
+      <div id="next_video">
+        <a href="javascript:va.playRandom()">next</a>
+      </div>
+      <div id="close_player">
+        <a href="javascript:va.closePlayer()">close</a>
+      </div>
     </div>
   </body>
 </html>

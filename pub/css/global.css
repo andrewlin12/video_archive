@@ -125,3 +125,45 @@ div {
 .video .status {
   color: #999999;
 }
+
+#player_container {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: none;
+}
+
+#player {
+  position: absolute;
+  margin: auto;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  vertical-align: middle;
+}
+
+#close_player {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 5px;
+}
+
+#next_video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 5px;
+}
+
+#next_video a, #close_player a {
+  color: white;
+}
